@@ -164,7 +164,7 @@ impl LoginSession {
         &self,
         config: &config::Config,
         img: String,
-    ) -> Result<Vec<i64>> {
+    ) -> Result<Vec<String>> {
         let prompt_text = "Analyze this CAPTCHA image. \
         The CAPTCHA consists of English letters and numbers. \
         Please return a JSON array containing the 3 most likely results, \
@@ -175,36 +175,42 @@ impl LoginSession {
 
         let request_body = json!({
             "model": config.llm_model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": prompt_text
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": format!("data:image/png;base64,{}", img)
-                            }
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt_text
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": format!("data:image/png;base64,{}", img)
                         }
-                    ]
-                }
-            ],
-            "max_tokens": 300
+                    }
+                ]
+            }],
+            "max_tokens": 300,
+            "stream": false
         });
 
+        let completions_url = format!("{}/chat/completions", config.llm_api_base);
         let response = Client::new()
-            .post(config.llm_api_base.clone())
+            .post(&completions_url)
             .bearer_auth(config.llm_api_key.clone())
             .json(&request_body)
             .send()
             .await
             .context("failed to send request when recorgnize captcha")?;
         let response_text = response.text().await?;
-        let result: Vec<i64> =
+        let value: serde_json::Value =
             serde_json::from_str(&response_text).context("parser llm recorgnize captcha error")?;
+        let path = "/choices/0/message/content";
+        let result = value
+            .pointer(path)
+            .and_then(|value| value.as_str())
+            .and_then(|s| serde_json::from_str(s).ok())
+            .ok_or_else(|| anyhow::anyhow!("parser from llm response error"))?;
         Ok(result)
     }
 
@@ -270,7 +276,7 @@ impl LoginSession {
         username: &str,
         encryped_passwd: &str,
         captcha_key: &str,
-        captcha_code: i64,
+        captcha_code: &str,
     ) -> Result<String, LoginError> {
         let req = json!(
             {
@@ -324,7 +330,7 @@ impl LoginSession {
                     &config.scut_username,
                     &passwd_encrypted,
                     &captcha_key,
-                    captcha_code.clone(),
+                    &captcha_code,
                 )
                 .await;
             match login_result {

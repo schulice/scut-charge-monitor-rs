@@ -21,7 +21,7 @@ pub struct Config {
     #[serde(alias = "ELECTRICITY_ALERT_THRESHOLD")]
     pub electricity_alert_threshold: i32,
     #[serde(alias = "LLM_RECOGNITION_RETRIES")]
-    pub llm_recognization_retries: i32,
+    pub llm_recognition_retries: i32,
     #[serde(alias = "EMAIL_SMTP_SERVER")]
     pub email_smtp_server: String,
     #[serde(alias = "EMAIL_SMTP_PORT")]
@@ -49,6 +49,7 @@ impl Config {
         Ok(config)
     }
 }
+
 pub const DOMAIN_DFYC: &str = "dfyc.utc.scut.edu.cn";
 pub const URL_QUERY_HISTORY: &str =
     "https://dfyc.utc.scut.edu.cn/sdms-weixin-pay-sp/service/ele/list";
