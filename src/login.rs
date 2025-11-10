@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 use std::{collections::HashMap, sync::LazyLock};
 
 use anyhow::{Context, Result};
@@ -47,7 +48,7 @@ struct FetchKeyboardInfoResp {
 #[derive(thiserror::Error, Debug)]
 pub enum LoginError {
     #[error("Can not pass authorication")]
-    AuthorizationFailed,
+    AuthorizationFailed { message: String },
     #[error("Invalid password or username")]
     InvalidPassword,
     #[error("Invalid captcha code")]
@@ -65,43 +66,54 @@ pub enum LoginError {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct LoginResp {
-    error_code: i32,
+    #[serde(default)]
+    code: i32,
+    status: i32,
+    message: String,
+    #[serde(default)]
     access_token: String,
 }
 
 pub struct LoginSession {
     cookie_jar: Arc<Jar>,
+    client: Client,
 }
 
 impl LoginSession {
-    pub fn new() -> Self {
-        Self {
-            cookie_jar: Arc::new(Jar::default()),
-        }
-    }
-
-    pub fn from_jar(jar: Arc<Jar>) -> Self {
-        Self { cookie_jar: jar }
-    }
-}
-
-impl LoginSession {
-    fn default_client(&self) -> Result<Client> {
+    fn default_client(jar: Arc<Jar>) -> Result<Client> {
         let mut header = HeaderMap::new();
         header.insert(
             header::AUTHORIZATION,
             HeaderValue::from_static(config::AUTHORIZATION),
         );
         let client = Client::builder()
-            .cookie_provider(self.cookie_jar.clone())
+            .cookie_provider(jar)
             .user_agent(config::USER_AGENT)
             .default_headers(header)
             .build()?;
         Ok(client)
     }
+    pub fn new() -> Result<Self> {
+        let jar = Arc::new(Jar::default());
+        let client = Self::default_client(jar.clone())?;
+        Ok(Self {
+            cookie_jar: jar,
+            client,
+        })
+    }
 
+    pub fn from_jar(jar: Arc<Jar>) -> Result<Self> {
+        let client = Self::default_client(jar.clone())?;
+        Ok(Self {
+            cookie_jar: jar,
+            client,
+        })
+    }
+}
+
+impl LoginSession {
     pub async fn fetch_keyboard_info(&self, captcha_key: &str) -> Result<KeyboardInfo> {
-        let client = self.default_client()?;
+        let client = &self.client;
         let url = config::url_keyboard_from_captcha_key(captcha_key);
         let resp = client.get(url).send().await?;
         let resp = resp
@@ -115,7 +127,7 @@ impl LoginSession {
 
     pub async fn get_captcha_data(&self) -> Result<(String, String)> {
         let resp = self
-            .default_client()?
+            .client
             .get(config::URL_CAPTCHA)
             .send()
             .await
@@ -165,14 +177,15 @@ impl LoginSession {
         config: &config::Config,
         img: String,
     ) -> Result<Vec<String>> {
-        let prompt_text = "Analyze this CAPTCHA image. \
-        The CAPTCHA consists of English letters and numbers. \
-        Please return a JSON array containing the 3 most likely results, \
-        sorted from highest to lowest probability. \
-        For example: [\"abcd\", \"abce\", \"abcf\"]. \
-        Please strictly adhere to the JSON format and do not include any additional explanatory text.\
-        And DO NOT wrap them in markdown block.";
-
+        let prompt = r#""
+            Analyze this CAPTCHA image.
+            The CAPTCHA consists of English letters and numbers.
+            Please return a JSON array containing the 3 most likely results.
+            Each result is consisted of 5 char or number, and no blank.
+            For example: ["abc2g", "abce1", "ab0el"]. 
+            Please strictly adhere to the JSON format and do not include any additional explanatory text.
+            And DO NOT wrap them in markdown block.
+        ""#;
         let request_body = json!({
             "model": config.llm_model,
             "messages": [{
@@ -180,7 +193,7 @@ impl LoginSession {
                 "content": [
                     {
                         "type": "text",
-                        "text": prompt_text
+                        "text": prompt
                     },
                     {
                         "type": "image_url",
@@ -193,12 +206,12 @@ impl LoginSession {
             "max_tokens": 300,
             "stream": false
         });
-
         let completions_url = format!("{}/chat/completions", config.llm_api_base);
         let response = Client::new()
             .post(&completions_url)
-            .bearer_auth(config.llm_api_key.clone())
-            .json(&request_body)
+            .bearer_auth(&config.llm_api_key)
+            .body(request_body.to_string())
+            .header(header::CONTENT_TYPE, "application/json")
             .send()
             .await
             .context("failed to send request when recorgnize captcha")?;
@@ -292,10 +305,15 @@ impl LoginSession {
                 "synAccessSource": "h5"
             }
         );
+        println!("login req: {}", &req);
         let resp = self
-            .default_client()?
-            .get(config::URL_LOGIN)
-            .json(&req)
+            .client
+            .post(config::URL_LOGIN)
+            .body(req.to_string())
+            .header(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("application/json"),
+            )
             .send()
             .await?;
         use reqwest::StatusCode;
@@ -307,40 +325,50 @@ impl LoginSession {
             }
             StatusCode::BAD_REQUEST => {
                 let resp: LoginResp = resp.json().await?;
-                match resp.error_code {
+                match resp.code {
                     8000 => Err(LoginError::InvalidPassword),
                     8002 => Err(LoginError::InvalidCaptchaCode),
-                    _ => Err(LoginError::NotOkErrorCode(resp.error_code)),
+                    _ => Err(LoginError::NotOkErrorCode(resp.code)),
                 }
             }
-            StatusCode::UNAUTHORIZED => Err(LoginError::AuthorizationFailed),
+            StatusCode::UNAUTHORIZED => {
+                let resp: LoginResp = resp.json().await?;
+                Err(LoginError::AuthorizationFailed {
+                    message: resp.message,
+                })
+            }
             _ => Err(LoginError::NotOkHttp(status)),
         }
     }
 
     pub async fn process(&self, config: &config::Config) -> Result<()> {
-        let (captcha_key, captchar_img_base64) = self.get_captcha_data().await?;
-        let info = self.fetch_keyboard_info(&captcha_key).await?;
-        let captcha_candidates = self.recognize_captcha(config, captchar_img_base64).await?;
-        let passwd_encrypted = Self::encrpy_with_dynamic_keyboard(&config.scut_password, &info)?;
         let mut errors = Vec::new();
-        for captcha_code in captcha_candidates.iter() {
-            let login_result = self
-                .login(
-                    &config.scut_username,
-                    &passwd_encrypted,
-                    &captcha_key,
-                    &captcha_code,
-                )
-                .await;
-            match login_result {
-                Ok(token) => {
-                    self.perform_redirect(&token).await?;
-                    return Ok(());
+        for _ in 0..config.llm_recognition_retries {
+            let (captcha_key, captchar_img_base64) = self.get_captcha_data().await?;
+            let info = self.fetch_keyboard_info(&captcha_key).await?;
+            let captcha_candidates = self.recognize_captcha(config, captchar_img_base64).await?;
+            let passwd_encrypted =
+                Self::encrpy_with_dynamic_keyboard(&config.scut_password, &info)?;
+            for captcha_code in captcha_candidates.iter() {
+                let login_result = self
+                    .login(
+                        &config.scut_username,
+                        &passwd_encrypted,
+                        &captcha_key,
+                        &captcha_code,
+                    )
+                    .await;
+                match login_result {
+                    Ok(token) => {
+                        self.perform_redirect(&token).await?;
+                        return Ok(());
+                    }
+                    Err(e) => errors.push(e),
                 }
-                Err(e) => errors.push(e),
             }
+            tokio::time::sleep(Duration::from_millis(500)).await;
         }
+        let error_count = errors.len();
         let error_report = errors
             .into_iter()
             .enumerate()
@@ -349,7 +377,7 @@ impl LoginSession {
             .join("\n");
         anyhow::bail!(
             "Operation failed after {} attempts with the following errors:\n{}",
-            captcha_candidates.len(),
+            error_count,
             error_report
         );
     }
