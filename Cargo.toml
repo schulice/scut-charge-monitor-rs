@@ -5,10 +5,12 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0"
+ureq = { version = "3.1.4", features = ["cookies", "json"]}
 base64 = "0.22"
-reqwest = { version = "0.12", features = ["cookies", "json"] }
 serde = "1.0"
 serde-envfile = "0.3.0"
 serde_json = "1.0"
 thiserror = "2.0"
-tokio = { version = "1.48", features = ["rt", "macros"] }
+log = "0.4.28"
+fern = "0.7.1"
+humantime = "2.3.0"

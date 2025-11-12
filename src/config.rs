@@ -51,6 +51,7 @@ impl Config {
 }
 
 pub const DOMAIN_DFYC: &str = "dfyc.utc.scut.edu.cn";
+pub const DOMAIN_LOGIN: &str = "ecardwxnew.scut.edu.cn";
 pub const URL_QUERY_HISTORY: &str =
     "https://dfyc.utc.scut.edu.cn/sdms-weixin-pay-sp/service/ele/list";
 pub const URL_BASE: &str = "https://ecardwxnew.scut.edu.cn";
@@ -58,8 +59,8 @@ pub const URL_REDIRECT: &str = "https://ecardwxnew.scut.edu.cn/berserker-base/re
 pub const URL_CAPTCHA: &str = "https://ecardwxnew.scut.edu.cn/berserker-auth/oauth/captcha";
 pub const URL_LOGIN: &str = "https://ecardwxnew.scut.edu.cn/berserker-auth/oauth/token";
 pub const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36";
-pub const AUTHORIZATION: &str =
-    "Basic bW9iaWxlX3NlcnZpY2VfcGxhdGZvcm06bW9iaWxlX3NlcnZpY2VfcGxhdGZvcm1fc2VjcmV0";
+pub const BASIC_AUTHORIZATION: &str =
+    "bW9iaWxlX3NlcnZpY2VfcGxhdGZvcm06bW9iaWxlX3NlcnZpY2VfcGxhdGZvcm1fc2VjcmV0";
 
 pub fn url_keyboard_from_captcha_key(key: &str) -> String {
     format!(
