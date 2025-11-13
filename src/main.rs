@@ -4,33 +4,18 @@ mod push;
 mod query;
 
 use anyhow::Result;
-use std::{env, path::PathBuf, process, str::FromStr, time::SystemTime};
+use clap::Parser;
+
+use std::{path::PathBuf, time::SystemTime};
 
 use login::LoginSession;
 use query::QuerySession;
 
-fn load_config_path_from_args() -> Result<PathBuf> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() == 1 {
-        println!("Do not specify config path, sliently use .env");
-        return Ok(PathBuf::from_str(".env")?);
-    }
-    if args.len() < 3 {
-        eprintln!("Usage: {} -f <FILE_PATH>", args[0]);
-        process::exit(1);
-    }
-    if &args[1] != "-f" {
-        eprintln!("Error: Invalid flag. Expected -f.");
-        eprintln!("Usage: {} --path <FILE_PATH>", args[0]);
-        process::exit(1);
-    }
-    let path_str = &args[2];
-    let config_path = PathBuf::from(path_str);
-    if !config_path.exists() {
-        eprintln!("Path verification: The file or directory does not exist.");
-        process::exit(1);
-    }
-    Ok(config_path)
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    #[arg(short, long, default_value = ".env")]
+    config: Option<PathBuf>,
 }
 
 fn setup_logger() -> Result<(), fern::InitError> {
@@ -51,7 +36,10 @@ fn setup_logger() -> Result<(), fern::InitError> {
 }
 
 fn main() -> Result<()> {
-    let config_path = load_config_path_from_args()?;
+    let cli = Cli::parse();
+    let config_path = cli
+        .config
+        .ok_or_else(|| anyhow::anyhow!("config file argument error"))?;
     setup_logger()?;
     let config = config::Config::read_from_file(&config_path)?;
     let login_session = LoginSession::new()?;
