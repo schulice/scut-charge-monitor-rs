@@ -225,20 +225,18 @@ impl LoginSession {
         captcha_key: &str,
         captcha_code: &str,
     ) -> Result<String, LoginError> {
-        let req = json!(
-            {
-                "grant_type": "password",
-                "scope": "all",
-                "username": username,
-                "password": encrypted_password,
-                "logintype": "card",
-                "captcha_header_code": captcha_code,
-                "captcha_header_key": captcha_key,
-                "loginFrom": "h5",
-                "device_token": "h5",
-                "synAccessSource": "h5",
-            }
-        );
+        let req = [
+            ("grant_type", "password"),
+            ("scope", "all"),
+            ("username", username),
+            ("password", encrypted_password),
+            ("logintype", "card"),
+            ("captcha_header_code", captcha_code),
+            ("captcha_header_key", captcha_key),
+            ("loginFrom", "h5"),
+            ("device_token", "h5"),
+            ("synAccessSource", "h5"),
+        ];
         let mut resp = self
             .agent
             .post(config::URL_LOGIN)
@@ -246,7 +244,7 @@ impl LoginSession {
                 "authorization",
                 format!("Basic {}", config::BASIC_AUTHORIZATION),
             )
-            .send_json(&req)?;
+            .send_form(req)?;
         let status = resp.status();
         match status {
             StatusCode::OK => {
