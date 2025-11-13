@@ -14,3 +14,10 @@ thiserror = "2.0"
 log = "0.4.28"
 fern = "0.7.1"
 humantime = "2.3.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
