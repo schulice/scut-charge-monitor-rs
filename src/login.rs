@@ -32,6 +32,7 @@ static STANDERAD_KEYBOARD_INFO: LazyLock<KeyboardInfo> = LazyLock::new(|| Keyboa
     upper_letter_keyboard: "ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_string(),
 });
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct FetchKeyboardInfoResp {
@@ -58,15 +59,41 @@ pub enum LoginError {
     InnerError(#[from] anyhow::Error),
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-struct LoginResp {
+struct LoginErrorResp {
     #[serde(default)]
     code: i32,
     status: i32,
     message: String,
-    #[serde(default)]
+}
+
+#[allow(dead_code)]
+#[derive(Deserialize, Debug)]
+struct LoginResp {
     access_token: String,
+    token_type: String,
+    refresh_token: String,
+    expires_in: i64,
+    scope: String,
+    tenant_id: String,
+    flag: String,
+    mobile: String,
+    #[serde(rename(deserialize = "loginFrom"))]
+    login_from: String,
+    uuid: String,
+    client_id: String,
+    is_password_expired: bool,
+    is_first_login: bool,
+    #[serde(rename(deserialize = "encryPassword"))]
+    encry_password: String,
+    sno: String,
+    #[serde(rename(deserialize = "logintype"))]
+    login_type: String,
+    name: String,
+    id: i64,
+    jti: String,
 }
 
 pub struct LoginSession {
@@ -153,7 +180,6 @@ impl LoginSession {
 
     /// `img` is base64
     pub fn recognize_captcha(&self, config: &config::Config, img: String) -> Result<Vec<String>> {
-        info!("recogize_captcha");
         let prompt = r#""
             Analyze this CAPTCHA image.
             The CAPTCHA consists of English letters and numbers.
@@ -199,25 +225,6 @@ impl LoginSession {
         Ok(result)
     }
 
-    pub fn perform_redirect(&self, access_token: &str) -> Result<String> {
-        let req = json!(
-            {
-                "appId": "360",
-                "loginFrom": "h5",
-                "synAccessSource": "h5",
-                "synjones-auth": access_token,
-                "type": "app"
-            }
-        );
-        // TODO not redirect here
-        let resp = self
-            .agent
-            .get(config::URL_REDIRECT)
-            .force_send_body()
-            .send_json(&req)?;
-        unimplemented!("check redirect sucess")
-    }
-
     pub fn login(
         &self,
         username: &str,
@@ -249,11 +256,14 @@ impl LoginSession {
         match status {
             StatusCode::OK => {
                 let resp: LoginResp = resp.body_mut().read_json()?;
+                info!(
+                    "login success with access_token: {}...",
+                    &resp.access_token[0..30]
+                );
                 Ok(resp.access_token)
             }
             StatusCode::BAD_REQUEST => {
-                let resp: LoginResp = resp.body_mut().read_json()?;
-                info!("resp: {:?}", resp);
+                let resp: LoginErrorResp = resp.body_mut().read_json()?;
                 match resp.code {
                     8000 => Err(LoginError::InvalidPassword),
                     8002 => Err(LoginError::InvalidCaptchaCode),
@@ -261,7 +271,7 @@ impl LoginSession {
                 }
             }
             StatusCode::UNAUTHORIZED => {
-                let resp: LoginResp = resp.body_mut().read_json()?;
+                let resp: LoginErrorResp = resp.body_mut().read_json()?;
                 Err(LoginError::AuthorizationFailed {
                     message: resp.message,
                 })
@@ -270,7 +280,7 @@ impl LoginSession {
         }
     }
 
-    pub fn process(&self, config: &config::Config) -> Result<()> {
+    pub fn process(&self, config: &config::Config) -> Result<String> {
         let mut errors = Vec::new();
         for _ in 0..config.llm_recognition_retries {
             let (captcha_key, captchar_img_base64) = self.get_captcha_data()?;
@@ -287,8 +297,7 @@ impl LoginSession {
                 );
                 match login_result {
                     Ok(token) => {
-                        self.perform_redirect(&token)?;
-                        return Ok(());
+                        return Ok(token);
                     }
                     Err(e) => errors.push(e),
                 }
