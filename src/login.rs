@@ -79,6 +79,7 @@ impl LoginSession {
             .user_agent(config::USER_AGENT)
             .ip_family(ureq::config::IpFamily::Ipv4Only)
             .redirect_auth_headers(ureq::config::RedirectAuthHeaders::SameHost)
+            .http_status_as_error(false)
             .build();
         Ok(Self {
             agent: config.into(),
@@ -220,7 +221,7 @@ impl LoginSession {
     pub fn login(
         &self,
         username: &str,
-        encryped_passwd: &str,
+        encrypted_password: &str,
         captcha_key: &str,
         captcha_code: &str,
     ) -> Result<String, LoginError> {
@@ -229,13 +230,13 @@ impl LoginSession {
                 "grant_type": "password",
                 "scope": "all",
                 "username": username,
-                "password": encryped_passwd,
+                "password": encrypted_password,
                 "logintype": "card",
                 "captcha_header_code": captcha_code,
                 "captcha_header_key": captcha_key,
                 "loginFrom": "h5",
                 "device_token": "h5",
-                "synAccessSource": "h5"
+                "synAccessSource": "h5",
             }
         );
         let mut resp = self
