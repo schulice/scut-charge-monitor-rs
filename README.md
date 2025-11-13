@@ -8,6 +8,6 @@ You may find binary on github release by github action, download it and prepare 
 
 The template is on `.env.template`, you can alse use a json file with `snake_case` key.
 
-You can use a `-f` flag to specify config file path, else will silently use `.env`.
+You can specify config file path, else will silently use `.env`.
 
 For electricity usage report, now only support [ftqq](https://sct.ftqq.com/sendkey). Later may support smtp.

@@ -26,15 +26,15 @@ pub struct Config {
     pub push_ftqq_key: String,
     #[serde(alias = "PUSH_DAILY_REPORT")]
     pub push_daily_report: bool,
-    #[serde(alias = "EMAIL_SMTP_SERVER")]
+    #[serde(skip, alias = "EMAIL_SMTP_SERVER")]
     pub email_smtp_server: String,
-    #[serde(alias = "EMAIL_SMTP_PORT")]
+    #[serde(skip, alias = "EMAIL_SMTP_PORT")]
     pub email_smtp_port: i32,
-    #[serde(alias = "EMAIL_SMTP_USER")]
+    #[serde(skip, alias = "EMAIL_SMTP_USER")]
     pub email_smtp_user: String,
-    #[serde(alias = "EMAIL_SMTP_PASSWORD")]
+    #[serde(skip, alias = "EMAIL_SMTP_PASSWORD")]
     pub email_smtp_password: String,
-    #[serde(alias = "EMAIL_RECIPIENT")]
+    #[serde(skip, alias = "EMAIL_RECIPIENT")]
     pub email_recipient: String,
 }
 
