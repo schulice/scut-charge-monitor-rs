@@ -22,19 +22,17 @@ pub struct Config {
     pub electricity_alert_threshold: i32,
     #[serde(alias = "LLM_RECOGNITION_RETRIES")]
     pub llm_recognition_retries: i32,
-    #[serde(alias = "PUSH_FTQQ_KEY")]
+    #[serde(default, alias = "PUSH_FTQQ_KEY")]
     pub push_ftqq_key: String,
-    #[serde(alias = "PUSH_DAILY_REPORT")]
+    #[serde(default, alias = "PUSH_DAILY_REPORT")]
     pub push_daily_report: bool,
-    #[serde(skip, alias = "EMAIL_SMTP_SERVER")]
+    #[serde(default, alias = "EMAIL_SMTP_SERVER")]
     pub email_smtp_server: String,
-    #[serde(skip, alias = "EMAIL_SMTP_PORT")]
-    pub email_smtp_port: i32,
-    #[serde(skip, alias = "EMAIL_SMTP_USER")]
+    #[serde(default, alias = "EMAIL_SMTP_USER")]
     pub email_smtp_user: String,
-    #[serde(skip, alias = "EMAIL_SMTP_PASSWORD")]
+    #[serde(default, alias = "EMAIL_SMTP_PASSWORD")]
     pub email_smtp_password: String,
-    #[serde(skip, alias = "EMAIL_RECIPIENT")]
+    #[serde(default, alias = "EMAIL_RECIPIENT")]
     pub email_recipient: String,
 }
 
@@ -71,6 +69,15 @@ impl Config {
             }
             _ => Err(anyhow::anyhow!("file name cannot parser to str")),
         }
+    }
+}
+
+impl Config {
+    pub fn is_smtp_empty(&self) -> bool {
+        self.email_smtp_server.is_empty()
+            || self.email_smtp_user.is_empty()
+            || self.email_smtp_password.is_empty()
+            || self.email_recipient.is_empty()
     }
 }
 

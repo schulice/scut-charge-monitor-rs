@@ -10,4 +10,4 @@ The template is on `.env.template`, you can alse use a json file with `snake_cas
 
 You can specify config file path, else will silently use `.env`.
 
-For electricity usage report, now only support [ftqq](https://sct.ftqq.com/sendkey). Later may support smtp.
+For electricity usage report, support [ftqq](https://sct.ftqq.com/sendkey) and smtp. Just set one of them or both.

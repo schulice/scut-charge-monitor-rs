@@ -15,6 +15,7 @@ log = "0.4.28"
 fern = "0.7.1"
 humantime = "2.3.0"
 clap = { version = "4.5.51", features = ["derive"] }
+lettre = { version = "0.11", default-features = false, features = ["builder", "hostname", "smtp-transport", "rustls-tls"] }
 
 [profile.release]
 opt-level = "z"
